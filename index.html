@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>風来の島 — 不思議のダンジョン</title>
+<style>
+:root{--bg:#07111d;--panel:#101f2e;--line:#31506a;--gold:#f4c76b;--text:#e7f2ff;--muted:#9bb2c8}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#18334a,#07111d 65%);color:var(--text);font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+button,input{font:inherit}button{cursor:pointer;border:1px solid #587b98;border-radius:8px;padding:10px 13px;background:#17324a;color:#fff}button:hover{background:#24506e}button.primary{background:#9c5c25;border-color:#f1c16b}input{background:#071521;color:#fff;border:1px solid var(--line);border-radius:8px;padding:10px;width:100%}
+.wrap{max-width:1120px;margin:auto;padding:18px}.head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}.logo{font-size:clamp(22px,4vw,34px);font-weight:900;letter-spacing:.08em;color:var(--gold);text-shadow:0 2px #6d321d}.tag{color:var(--muted);font-size:12px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:14px}.panel{background:linear-gradient(145deg,#102337,#081521);border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:0 10px 35px #0005}.canvasbox{position:relative}canvas{display:block;width:100%;height:auto;image-rendering:pixelated;border-radius:7px;border:1px solid #34516a;background:#0a1420}
+.hud{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:13px;margin-bottom:10px}.stat{color:#a8d8ff}.gold{color:var(--gold)}.side{display:flex;flex-direction:column;gap:12px}.title{font-size:14px;color:var(--gold);margin:0 0 10px}.players{display:grid;gap:7px}.player{padding:8px;border:1px solid #2b455a;border-radius:7px;font-size:12px;display:flex;justify-content:space-between;gap:6px}.player.me{border-color:var(--gold)}.log{height:160px;overflow:auto;background:#050d15;border:1px solid #263f53;border-radius:7px;padding:9px;font-size:12px;line-height:1.7}.log div{border-bottom:1px solid #ffffff0a}.controls{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:230px;margin:10px auto 0}.controls button{padding:12px 4px;font-size:16px}.controls .blank{visibility:hidden}.inventory{display:flex;flex-wrap:wrap;gap:6px}.item{font-size:12px;padding:7px;border:1px solid #34516a;border-radius:7px;background:#0a1825}.room{display:flex;gap:6px}.room input{min-width:0}.hint{font-size:11px;color:var(--muted);line-height:1.7}.footer{font-size:11px;color:#7893aa;margin-top:12px;text-align:center}
+@media(max-width:780px){.wrap{padding:10px}.layout{grid-template-columns:1fr}.side{display:grid;grid-template-columns:1fr 1fr}.side .wide{grid-column:1/-1}.head{align-items:flex-start;flex-direction:column}.log{height:130px}}
+</style></head>
+<body><div class="wrap">
+<header class="head"><div><div class="logo">風来の島 <span style="font-size:14px;color:#fff">β</span></div><div class="tag">みんなで潜る、毎回違う不思議のダンジョン</div></div><div class="tag" id="connection">● オフライン冒険モード</div></header>
+<div class="layout"><main class="panel">
+<div class="hud"><span>探索階層 <b id="floor" class="gold">1F</b></span><span>HP <b id="hp" class="stat">30 / 30</b></span><span>ターン <b id="turn">0</b></span><span>所持金 <b id="money" class="gold">120 G</b></span></div>
+<div class="canvasbox"><canvas id="game" width="720" height="480" aria-label="ダンジョン画面"></canvas></div>
+<div class="controls" aria-label="移動操作"><span class="blank">　</span><button data-move="0,-1">▲</button><span class="blank">　</span><button data-move="-1,0">◀</button><button id="wait">待機</button><button data-move="1,0">▶</button><span class="blank">　</span><button data-move="0,1">▼</button><button id="stairs">降りる ↓</button></div>
+<p class="hint">操作：矢印キー / WASDで移動、隣の敵にぶつかると攻撃。敵もあなたの行動ごとに動く。階段の上で「降りる」。スマホは方向ボタンで操作。</p>
+</main>
+<aside class="side">
+<section class="panel"><h3 class="title">仲間 / パーティー</h3><div class="players" id="players"></div><div style="margin-top:10px" class="room"><input id="name" maxlength="12" placeholder="プレイヤー名" value="風来人"><button id="rename">変更</button></div></section>
+<section class="panel"><h3 class="title">オンライン協力プレイ</h3><p class="hint">サーバーを起動すると、部屋コードで同じ冒険に参加できます。</p><input id="server" placeholder="WebSocket URL (例 ws://localhost:8080)"><div style="height:7px"></div><div class="room"><input id="room" maxlength="8" placeholder="部屋コード" value="SHIMA"><button id="connect">接続</button></div><div style="height:7px"></div><button id="disconnect" style="width:100%">オンライン切断</button><p class="hint" id="netstatus">未接続。オフラインでも遊べます。</p></section>
+<section class="panel"><h3 class="title">持ち物</h3><div class="inventory" id="inventory"></div><p class="hint">草やおにぎりを拾って使おう。アイテムは敵の近くで使うと冒険が変わるかも。</p></section>
+<section class="panel wide"><h3 class="title">冒険の記録</h3><div class="log" id="log"></div><div style="display:flex;gap:7px;margin-top:8px"><button id="restart" class="primary" style="flex:1">新しい冒険</button><button id="use" style="flex:1">アイテムを使う</button></div></section>
+</aside></div><div class="footer">風来の島 — オリジナルのファンメイド風ローグライク試作 / シレン公式作品ではありません</div></div>
+<script>
+(()=>{
+const cvs=document.getElementById('game'),ctx=cvs.getContext('2d'),W=30,H=20,S=24;
+let seed=Date.now()>>>0, map=[],player={x:2,y:2,hp:30,max:30,atk:5},enemies=[],items=[],stairs={x:27,y:17},turn=0,floor=1,money=120,inv=[{name:'おにぎり',type:'heal',n:1},{name:'薬草',type:'heal',n:1}],logs=[],players={},id='p'+Math.random().toString(36).slice(2,8),ws=null,room='SHIMA',online=false,name='風来人';
+const $=id=>document.getElementById(id);
+function rand(n){seed=(seed*1664525+1013904223)>>>0;return seed%n}
+function log(s){logs.unshift(s);logs=logs.slice(0,40);$('log').innerHTML=logs.map(x=>'<div>'+esc(x)+'</div>').join('')}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function dungeon(){seed=(Date.now()+floor*991)>>>0;map=Array.from({length:H},()=>Array(W).fill(0));for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(x===0||y===0||x===W-1||y===H-1)map[y][x]=1;
+ // carve connected winding corridors using random walk, plus rooms
+ let x=2,y=2;map[y][x]=0;for(let i=0;i<950;i++){let d=rand(4);x=Math.max(1,Math.min(W-2,x+[1,-1,0,0][d]));y=Math.max(1,Math.min(H-2,y+[0,0,1,-1][d]));map[y][x]=0;if(rand(3)===0){for(let yy=Math.max(1,y-1);yy<=Math.min(H-2,y+1);yy++)for(let xx=Math.max(1,x-1);xx<=Math.min(W-2,x+1);xx++)map[yy][xx]=0}}
+ // add occasional wall chunks for texture
+ for(let i=0;i<55;i++){let xx=1+rand(W-2),yy=1+rand(H-2);if((xx>4||yy>4)&&map[yy][xx]===0&&!(xx===2&&yy===2))map[yy][xx]=rand(3)===0?2:0}
+ map[2][2]=0;player.x=2;player.y=2;enemies=[];items=[];
+ for(let i=0;i<12;i++){let p=emptyCell();enemies.push({...p,hp:7+floor*2,atk:2+Math.floor(floor/2),kind:rand(3),alive:true})}
+ for(let i=0;i<12;i++){let p=emptyCell();items.push({...p,type:rand(3)===0?'coin':rand(2)?'herb':'rice',taken:false})}
+ stairs=emptyCell();stairs.x=Math.max(24,stairs.x);stairs.y=Math.max(14,stairs.y);map[stairs.y][stairs.x]=0;map[2][2]=0;turn=0;player.hp=Math.min(player.max,player.hp+8);log('第'+floor+'階に到着。気配がする……');draw();updateUI();sync();}
+function emptyCell(){let x,y,n=0;do{x=1+rand(W-2);y=1+rand(H-2);n++}while((map[y][x]!==0||(x<5&&y<5)||enemies.some(e=>e.x===x&&e.y===y)||items.some(e=>e.x===x&&e.y===y))&&n<500);return{x,y}}
+function blocked(x,y){return !map[y]||map[y][x]===1||map[y][x]===2}
+function move(dx,dy){if(player.hp<=0)return;let x=player.x+dx,y=player.y+dy;if(blocked(x,y))return log('壁だ。これ以上進めない。');let e=enemies.find(e=>e.alive&&e.x===x&&e.y===y);if(e){e.hp-=5+rand(3);log(['モンスター','洞窟ネズミ','鬼面武者'][e.kind]+'に攻撃！');if(e.hp<=0){e.alive=false;let g=10+rand(20);money+=g;log('敵を倒した！ '+g+'Gを手に入れた。')}}else{player.x=x;player.y=y;let it=items.find(i=>!i.taken&&i.x===x&&i.y===y);if(it){it.taken=true;if(it.type==='coin'){let g=20+rand(31);money+=g;log('ギタンを拾った。+'+g+'G')}else{let item={name:it.type==='rice'?'おにぎり':'薬草',type:'heal',n:1};inv.push(item);log(item.name+'を拾った！')}}}
+ endTurn();draw();updateUI();sync()}
+function endTurn(){turn++;for(const e of enemies){if(!e.alive)continue;let dx=player.x-e.x,dy=player.y-e.y;if(Math.abs(dx)+Math.abs(dy)===1){player.hp-=e.atk;log('敵の攻撃！ '+e.atk+'ダメージ');continue}if(Math.abs(dx)+Math.abs(dy)<9){let ax=Math.abs(dx)>Math.abs(dy)?Math.sign(dx):0,ay=ax?0:Math.sign(dy);if(!blocked(e.x+ax,e.y+ay)&&!enemies.some(o=>o!==e&&o.alive&&o.x===e.x+ax&&o.y===e.y+ay)){e.x+=ax;e.y+=ay}}}if(player.hp<=0){player.hp=0;log('倒れてしまった……「新しい冒険」で再挑戦しよう。')} }
+function useItem(){if(!inv.length)return log('持ち物がない。');let i=inv.findIndex(x=>x.type==='heal');if(i<0)return log('使えるアイテムがない。');let it=inv.splice(i,1)[0],heal=it.name==='おにぎり'?12:8;player.hp=Math.min(player.max,player.hp+heal);log(it.name+'を食べた。HPが'+heal+'回復！');endTurn();draw();updateUI();sync()}
+function descend(){if(player.x!==stairs.x||player.y!==stairs.y)return log('階段の上にいない。');floor++;player.max+=2;player.hp=Math.min(player.max,player.hp+10);dungeon()}
+function draw(){ctx.clearRect(0,0,cvs.width,cvs.height);ctx.fillStyle='#08121b';ctx.fillRect(0,0,cvs.width,cvs.height);for(let y=0;y<H;y++)for(let x=0;x<W;x++){let v=map[y][x],px=x*S,py=y*S;ctx.fillStyle=v===1?'#142b3a':v===2?'#203b49':'#0b1a25';ctx.fillRect(px,py,S-1,S-1);if(v===1){ctx.fillStyle='#294354';ctx.fillRect(px+2,py+2,S-5,3)}else if(v===0&&rand(30)===0){ctx.fillStyle='#142a37';ctx.fillRect(px+8,py+8,3,3)}}
+ctx.fillStyle='#c69b50';ctx.fillRect(stairs.x*S+5,stairs.y*S+5,14,14);ctx.fillStyle='#fff1bd';ctx.fillText('↓',stairs.x*S+8,stairs.y*S+16);
+for(const it of items)if(!it.taken){ctx.font='16px sans-serif';ctx.fillText(it.type==='coin'?'🟡':it.type==='rice'?'🍙':'🌿',it.x*S+3,it.y*S+18)}
+for(const e of enemies)if(e.alive){ctx.font='19px sans-serif';ctx.fillText(['👹','🐀','💀'][e.kind],e.x*S+2,e.y*S+19);ctx.fillStyle='#f66';ctx.fillRect(e.x*S+4,e.y*S+21,Math.max(2,16*e.hp/(7+floor*2)),2)}
+ctx.font='20px sans-serif';ctx.fillText('🧢',player.x*S+2,player.y*S+19);if(online){let others=Object.values(players).filter(p=>p.id!==id&&p.x!=null);for(const p of others){ctx.fillText('🧙',p.x*S+2,p.y*S+19)}}}
+function updateUI(){$('floor').textContent=floor+'F';$('hp').textContent=player.hp+' / '+player.max;$('turn').textContent=turn;$('money').textContent=money+' G';$('inventory').innerHTML=inv.length?inv.map(i=>'<span class="item">'+(i.name==='おにぎり'?'🍙':'🌿')+' '+esc(i.name)+'</span>').join(''):'<span class="hint">空っぽ</span>';let ps=[{id,name,x:player.x,y:player.y,hp:player.hp},...Object.values(players).filter(p=>p.id!==id)];$('players').innerHTML=ps.map((p,i)=>'<div class="player '+(p.id===id?'me':'')+'"><span>'+(p.id===id?'🧢':'🧙')+' '+esc(p.name)+(p.id===id?' (あなた)':'')+'</span><span>HP '+(p.hp??'—')+'</span></div>').join('')}
+function sync(){if(!online||!ws||ws.readyState!==1)return;ws.send(JSON.stringify({type:'state',room,id,name,x:player.x,y:player.y,hp:player.hp,floor,turn,money,seed:seed>>>0,map,enemies,items,stairs,player,inv,logs:logs.slice(0,12)}))}
+function connect(){let url=$('server').value.trim();room=($('room').value.trim()||'SHIMA').toUpperCase();name=$('name').value.trim()||'風来人';if(!url){$('netstatus').textContent='先にサーバーURLを入力してください。';return}try{ws=new WebSocket(url)}catch(e){$('netstatus').textContent='URLを確認してください。';return}ws.onopen=()=>{online=true;$('connection').textContent='● オンライン接続中';$('netstatus').textContent='部屋 '+room+' に接続しました。';ws.send(JSON.stringify({type:'join',room,id,name}));sync();updateUI()};ws.onmessage=ev=>{try{let m=JSON.parse(ev.data);if(m.type==='state'&&m.id!==id){players[m.id]=m;if(m.snapshot&&m.snapshot.floor>=floor){const s=m.snapshot;map=s.map;enemies=s.enemies;items=s.items;stairs=s.stairs;floor=s.floor;turn=s.turn;money=s.money;player=s.player;inv=s.inv;logs=s.logs||logs;draw();updateUI()}}else if(m.type==='players'){players=m.players||{};updateUI();draw()}else if(m.type==='chat')log(m.text)}catch(e){}};ws.onclose=()=>{online=false;$('connection').textContent='● オフライン冒険モード';$('netstatus').textContent='切断されました。';updateUI()};ws.onerror=()=>{$('netstatus').textContent='接続できません。サーバーが起動しているか確認してください。'}}
+function restart(){floor=1;money=120;player={x:2,y:2,hp:30,max:30,atk:5};inv=[{name:'おにぎり',type:'heal',n:1},{name:'薬草',type:'heal',n:1}];logs=[];dungeon()}
+document.querySelectorAll('[data-move]').forEach(b=>b.onclick=()=>move(...b.dataset.move.split(',').map(Number)));$('wait').onclick=()=>{endTurn();log('様子を見た。');draw();updateUI();sync()};$('stairs').onclick=descend;$('use').onclick=useItem;$('restart').onclick=restart;$('connect').onclick=connect;$('disconnect').onclick=()=>{if(ws)ws.close();online=false;players={};updateUI()};$('rename').onclick=()=>{name=$('name').value.trim()||'風来人';updateUI();sync()};
+document.addEventListener('keydown',e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d','W','A','S','D'].includes(e.key)){e.preventDefault();let m={'ArrowUp':[0,-1],w:[0,-1],W:[0,-1],'ArrowDown':[0,1],s:[0,1],S:[0,1],'ArrowLeft':[-1,0],a:[-1,0],A:[-1,0],'ArrowRight':[1,0],d:[1,0],D:[1,0]}[e.key];move(...m)}else if(e.key===' '){e.preventDefault();endTurn();draw();updateUI();sync()}});
+dungeon();
+})();
+</script></body></html>
